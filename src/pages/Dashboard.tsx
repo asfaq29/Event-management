@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { eventsAPI, type Event } from "../api/api";
 import EventForm from "../components/EventForm";
+import { useAppDispatch } from "../store/hooks";
+import { logout } from "../store/slices/authSlice";
 
 const Dashboard = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -11,6 +13,10 @@ const Dashboard = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Redux state and dispatch
+  const dispatch = useAppDispatch();
+  // const { user } = useAppSelector((state) => state.auth); // Available for future use
 
   // Get current page and search from URL params
   const currentPage = parseInt(searchParams.get("page") || "1");
@@ -94,7 +100,7 @@ const Dashboard = () => {
 
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
+    dispatch(logout());
     navigate("/login");
   };
 

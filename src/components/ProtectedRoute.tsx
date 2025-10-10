@@ -1,14 +1,15 @@
 import { type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
+import { useAppSelector } from "../store/hooks";
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("access_token");
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
 
-  if (!token) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 

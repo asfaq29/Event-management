@@ -1,36 +1,80 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { authAPI, type LoginCredentials } from "../api/api";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  setTempPassword,
+  clearTempPassword,
+  clearError,
+  initializeAuth,
+} from "../store/slices/authSlice";
 
 const Login = () => {
   const [formData, setFormData] = useState<LoginCredentials>({
     email: "",
     password: "",
   });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
+  // Redux state and dispatch
+  const dispatch = useAppDispatch();
+  const { loading, error, isAuthenticated } = useAppSelector(
+    (state) => state.auth
+  );
+
+  // Initialize auth state on component mount
+  useEffect(() => {
+    dispatch(initializeAuth());
+  }, [dispatch]);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+
+    // Store password in Redux when password field changes
+    if (name === "password") {
+      dispatch(setTempPassword(value));
+    }
+
     // Clear error when user starts typing
-    if (error) setError("");
+    if (error) dispatch(clearError());
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    dispatch(loginStart());
 
     try {
       const response = await authAPI.login(formData);
       const { access_token } = response.data;
 
-      localStorage.setItem("access_token", access_token);
+      // Dispatch success action with user data
+      dispatch(
+        loginSuccess({
+          token: access_token,
+          user: {
+            email: formData.email,
+          },
+        })
+      );
+
+      // Clear temporary password from Redux
+      dispatch(clearTempPassword());
+
       navigate("/dashboard");
     } catch (err: unknown) {
       let errorMessage = "Invalid credentials. Please try again.";
@@ -44,9 +88,7 @@ const Login = () => {
         }
       }
 
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+      dispatch(loginFailure(errorMessage));
     }
   };
 
