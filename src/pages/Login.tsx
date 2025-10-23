@@ -1,5 +1,4 @@
-import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { authAPI, type LoginCredentials } from "../api/api";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
@@ -9,8 +8,10 @@ import {
   setTempPassword,
   clearTempPassword,
   clearError,
+  resetLoading,
   initializeAuth,
 } from "../store/slices/authSlice";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
 const Login = () => {
   const [formData, setFormData] = useState<LoginCredentials>({
@@ -18,20 +19,28 @@ const Login = () => {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [loginSuccessMessage, setLoginSuccessMessage] = useState("");
   const navigate = useNavigate();
-
-  // Redux state and dispatch
+  const location = useLocation();
   const dispatch = useAppDispatch();
   const { loading, error, isAuthenticated } = useAppSelector(
     (state) => state.auth
   );
 
-  // Initialize auth state on component mount
   useEffect(() => {
     dispatch(initializeAuth());
-  }, [dispatch]);
+    dispatch(resetLoading()); // Ensure loading state is reset
 
-  // Redirect if already authenticated
+    // Check if there's a success message from signup
+    const state = location.state as { message?: string };
+    if (state?.message) {
+      setSuccessMessage(state.message);
+      // Clear the message from location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [dispatch, location]);
+
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/dashboard");
@@ -45,13 +54,22 @@ const Login = () => {
       [name]: value,
     });
 
-    // Store password in Redux when password field changes
     if (name === "password") {
       dispatch(setTempPassword(value));
     }
 
-    // Clear error when user starts typing
-    if (error) dispatch(clearError());
+    // Clear error when user starts typing (but not success messages)
+    // Add a small delay to prevent immediate clearing of error messages
+    if (error) {
+      setTimeout(() => {
+        dispatch(clearError());
+      }, 100);
+    }
+
+    // Only clear signup success message when user starts typing
+    if (successMessage) setSuccessMessage("");
+
+    // Don't clear login success message - let it show until redirect
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -60,25 +78,34 @@ const Login = () => {
 
     try {
       const response = await authAPI.login(formData);
-      const { access_token } = response.data;
+      const { access_token, user } = response.data;
 
-      // Dispatch success action with user data
       dispatch(
         loginSuccess({
           token: access_token,
           user: {
-            email: formData.email,
+            id: user.id,
+            email: user.email,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
           },
         })
       );
 
-      // Clear temporary password from Redux
       dispatch(clearTempPassword());
 
-      navigate("/dashboard");
+      // Show success message before redirecting
+      setLoginSuccessMessage("Login successful! Redirecting to dashboard...");
+
+      // Clear any existing error messages
+      dispatch(clearError());
+
+      // Redirect to dashboard after a delay to show the success message
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2500);
     } catch (err: unknown) {
       let errorMessage = "Invalid credentials. Please try again.";
-
       if (err && typeof err === "object" && "response" in err) {
         const axiosError = err as {
           response?: { data?: { message?: string } };
@@ -87,11 +114,11 @@ const Login = () => {
           errorMessage = axiosError.response.data.message;
         }
       }
-
       dispatch(loginFailure(errorMessage));
     }
   };
 
+  // UI rendering remains unchanged
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 space-y-8">
@@ -187,6 +214,33 @@ const Login = () => {
               </div>
             </div>
           </div>
+
+          {successMessage && (
+            <div className="rounded-md bg-green-50 p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-green-800">
+                    {successMessage}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {loginSuccessMessage && (
+            <div className="rounded-md bg-green-50 p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 mr-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-green-800">
+                    {loginSuccessMessage}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-md bg-red-50 p-4">

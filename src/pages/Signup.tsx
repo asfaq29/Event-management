@@ -4,11 +4,11 @@ import { authAPI } from "../api/api";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   signupStart,
-  signupSuccess,
   signupFailure,
   setTempPassword,
   clearTempPassword,
   clearError,
+  resetLoading,
   initializeAuth,
 } from "../store/slices/authSlice";
 
@@ -83,30 +83,21 @@ const Signup = () => {
     }
 
     try {
-      // For now, we'll use the login API endpoint
-      // In a real app, you'd have a separate signup endpoint
-      const response = await authAPI.login({
+      // Use the register API endpoint
+      await authAPI.register({
         email: formData.email,
         password: formData.password,
       });
-      const { access_token } = response.data;
 
-      // Dispatch success action with user data
-      dispatch(
-        signupSuccess({
-          token: access_token,
-          user: {
-            email: formData.email,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-          },
-        })
-      );
-
-      // Clear temporary password from Redux
+      // Clear temporary password and reset loading state
       dispatch(clearTempPassword());
+      dispatch(clearError());
+      dispatch(resetLoading());
 
-      navigate("/dashboard");
+      // Redirect to login page after successful signup
+      navigate("/login", {
+        state: { message: "Account created successfully! Please log in." },
+      });
     } catch (err: unknown) {
       let errorMessage = "Failed to create account. Please try again.";
 

@@ -12,6 +12,13 @@ const Dashboard = () => {
   const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [operationLoading, setOperationLoading] = useState<{
+    create?: boolean;
+    update?: boolean;
+    delete?: boolean;
+    search?: boolean;
+  }>({});
+  const [successMessage, setSuccessMessage] = useState("");
   const navigate = useNavigate();
 
   // Redux state and dispatch
@@ -36,12 +43,15 @@ const Dashboard = () => {
       };
 
       const response = await eventsAPI.getEvents(params);
-      setEvents(response.data.events || []);
+      setEvents(response.data.items || []);
     } catch (err: unknown) {
+      setSuccessMessage(""); // Clear any existing success messages
       setError("Failed to fetch events. Please try again.");
       console.error("Error fetching events:", err);
     } finally {
       setLoading(false);
+      // Clear all operation loading states
+      setOperationLoading({});
     }
   }, [currentPage, currentSearch, limit]);
 
@@ -54,6 +64,9 @@ const Dashboard = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const searchTerm = formData.get("search") as string;
+
+    // Set search loading state
+    setOperationLoading((prev) => ({ ...prev, search: true }));
 
     // Update URL params
     const newSearchParams = new URLSearchParams();
@@ -77,12 +90,20 @@ const Dashboard = () => {
       return;
     }
 
+    setOperationLoading((prev) => ({ ...prev, delete: true }));
+
     try {
       await eventsAPI.deleteEvent(id);
+      setError(""); // Clear any existing errors
+      setSuccessMessage(`Event "${title}" has been successfully deleted!`);
+      setTimeout(() => setSuccessMessage(""), 3000);
       fetchEvents(); // Refresh the events list
     } catch (err: unknown) {
+      setSuccessMessage(""); // Clear any existing success messages
       setError("Failed to delete event. Please try again.");
       console.error("Error deleting event:", err);
+    } finally {
+      setOperationLoading((prev) => ({ ...prev, delete: false }));
     }
   };
 
@@ -94,6 +115,27 @@ const Dashboard = () => {
 
   // Handle form submission
   const handleFormSubmit = () => {
+    const isEdit = !!editingEvent;
+    const eventTitle = editingEvent?.title || "Event";
+
+    setOperationLoading((prev) => ({
+      ...prev,
+      [isEdit ? "update" : "create"]: true,
+    }));
+
+    // Show success message after a short delay to simulate operation completion
+    setTimeout(() => {
+      setError(""); // Clear any existing errors
+      if (isEdit) {
+        setSuccessMessage(
+          `Event "${eventTitle}" has been successfully updated!`
+        );
+      } else {
+        setSuccessMessage("Event has been successfully created!");
+      }
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }, 500);
+
     fetchEvents(); // Refresh the events list
     setEditingEvent(null);
   };
@@ -114,7 +156,68 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Loading Overlay */}
+      {(operationLoading.create || operationLoading.update) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 flex items-center space-x-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <div>
+              <div className="text-lg font-medium text-gray-900">
+                {operationLoading.create
+                  ? "Creating Event..."
+                  : "Updating Event..."}
+              </div>
+              <div className="text-sm text-gray-500">
+                Please wait while we process your request
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message Pop-up */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 max-w-md">
+            <svg
+              className="h-6 w-6 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div className="flex-1">
+              <p className="font-medium">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setSuccessMessage("")}
+              className="flex-shrink-0 ml-4 text-white hover:text-gray-200"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
@@ -154,9 +257,17 @@ const Dashboard = () => {
             </div>
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+              disabled={operationLoading.search}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
             >
-              Search
+              {operationLoading.search ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Searching...
+                </>
+              ) : (
+                "Search"
+              )}
             </button>
             {currentSearch && (
               <button
@@ -189,9 +300,14 @@ const Dashboard = () => {
         {/* Events Table */}
         <div className="bg-white shadow rounded-lg overflow-hidden">
           {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <span className="ml-2 text-gray-600">Loading events...</span>
+            <div className="flex flex-col justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600 mb-4"></div>
+              <span className="text-gray-600 text-lg font-medium">
+                Loading events...
+              </span>
+              <div className="mt-2 text-sm text-gray-500">
+                Please wait while we fetch your events
+              </div>
             </div>
           ) : events.length === 0 ? (
             <div className="text-center py-12">
@@ -267,9 +383,17 @@ const Dashboard = () => {
                             onClick={() =>
                               handleDeleteEvent(event.id, event.title)
                             }
-                            className="text-red-600 hover:text-red-900"
+                            disabled={operationLoading.delete}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                           >
-                            Delete
+                            {operationLoading.delete ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
+                                Deleting...
+                              </>
+                            ) : (
+                              "Delete"
+                            )}
                           </button>
                         </td>
                       </tr>

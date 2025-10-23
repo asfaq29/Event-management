@@ -6,8 +6,29 @@ interface LoginCredentials {
   password: string;
 }
 
+interface RegisterCredentials {
+  email: string;
+  password: string;
+}
+
 interface LoginResponse {
   access_token: string;
+  user: {
+    id: string;
+    email: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+interface RegisterResponse {
+  access_token: string;
+  user: {
+    id: string;
+    email: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 interface Event {
@@ -17,6 +38,8 @@ interface Event {
   date: string;
   location: string;
   organizer: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface EventFormData {
@@ -28,7 +51,7 @@ interface EventFormData {
 }
 
 interface EventsResponse {
-  events: Event[];
+  items: Event[];
   total?: number;
   page?: number;
   limit?: number;
@@ -42,7 +65,7 @@ interface EventsParams {
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3001/",
   headers: {
     "Content-Type": "application/json",
   },
@@ -80,6 +103,10 @@ export const authAPI = {
     credentials: LoginCredentials
   ): Promise<AxiosResponse<LoginResponse>> =>
     api.post("/auth/login", credentials),
+  register: (
+    credentials: RegisterCredentials
+  ): Promise<AxiosResponse<RegisterResponse>> =>
+    api.post("/auth/register", credentials),
 };
 
 // Events API
@@ -91,7 +118,7 @@ export const eventsAPI = {
   updateEvent: (
     id: string,
     eventData: EventFormData
-  ): Promise<AxiosResponse<Event>> => api.put(`/events/${id}`, eventData),
+  ): Promise<AxiosResponse<Event>> => api.patch(`/events/${id}`, eventData),
   deleteEvent: (id: string): Promise<AxiosResponse<void>> =>
     api.delete(`/events/${id}`),
 };
@@ -101,7 +128,9 @@ export type {
   Event,
   EventFormData,
   LoginCredentials,
+  RegisterCredentials,
   LoginResponse,
+  RegisterResponse,
   EventsResponse,
   EventsParams,
 };
